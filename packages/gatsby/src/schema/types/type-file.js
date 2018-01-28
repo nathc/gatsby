@@ -11,13 +11,21 @@ const {
   createPageDependency,
 } = require(`../../redux/actions/add-page-dependency`)
 const { joinPath } = require(`../../utils/path`)
+const { registerGraphQLType } = require(`./graphql-type-registry`)
 
-let type, listType, fileNodeRootType
+let type, listType
 
-export function setFileNodeRootType(nodeRootType) {
-  fileNodeRootType = nodeRootType
-  type = createType(false)
-  listType = createType(true)
+export function setFileNodeRootType(fileNodeRootType) {
+  if (fileNodeRootType) {
+    type = createType(fileNodeRootType, false)
+    listType = createType(fileNodeRootType, true)
+
+    registerGraphQLType(`File`, type)
+    registerGraphQLType(`[File]`, listType)
+  } else {
+    type = null
+    listType = null
+  }
 }
 
 function findRootNode(node) {
@@ -136,7 +144,7 @@ function pointsToFile(nodes, key, value) {
   return otherFileExists
 }
 
-function createType(isArray) {
+function createType(fileNodeRootType, isArray) {
   if (!fileNodeRootType) return null
 
   return {
