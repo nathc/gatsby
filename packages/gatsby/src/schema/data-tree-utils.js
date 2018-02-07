@@ -48,12 +48,13 @@ const isEmptyObjectOrArray = (obj: any): boolean => {
  *  - [{ color: 'red'}, { color: 'blue', ht: 5 }] -> [{ color: 'red', ht: 5 }]
  *
  * @param {*Nodes} args
+ * @param {string} selector path to field we extract example values from
  */
-const extractFieldExamples = (nodes: any[]) =>
+const extractFieldExamples = (nodes: any[], selector: ?string) =>
   // $FlowFixMe
-  _.mergeWith(
+  _.assignWith(
     _.isArray(nodes[0]) ? [] : {},
-    ..._.cloneDeep(nodes),
+    ..._.clone(nodes),
     (obj, next, key, po, pn, stack) => {
       if (obj === INVALID_VALUE) return obj
 
@@ -62,6 +63,13 @@ const extractFieldExamples = (nodes: any[]) =>
       // e.g. union: [1, { foo: true }, ['brown']] -> Union Int|Object|List
       if (!isSameType(obj, next)) {
         return INVALID_VALUE
+      }
+
+      if (_.isPlainObject(obj || next)) {
+        return extractFieldExamples(
+          [obj, next],
+          selector && `${selector}.${key}`
+        )
       }
 
       if (!_.isArray(obj || next)) {
@@ -83,11 +91,14 @@ const extractFieldExamples = (nodes: any[]) =>
         return array
       }
 
-      // primitive values and dates don't get merged further, just take the first item
+      // primitive values don't get merged further, just take the first item
       if (!_.isObject(array[0]) || array[0] instanceof Date) {
         return array.slice(0, 1)
       }
-      let merged = extractFieldExamples(array)
+      let merged = extractFieldExamples(
+        array,
+        selector && `${selector}.${key}[]`
+      )
       return isDefined(merged) ? [merged] : null
     }
   )

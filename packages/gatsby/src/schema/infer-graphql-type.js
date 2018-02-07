@@ -310,11 +310,16 @@ export function inferObjectStructureFromNodes({
   nodes,
   types,
   selector,
-  exampleValue = extractFieldExamples(nodes),
+  exampleValue = null,
 }: inferTypeOptions): GraphQLFieldConfigMap<*, *> {
   const config = store.getState().config
   const isRoot = !selector
   const mapping = config && config.mapping
+
+  const nodeType = nodes[0].internal && nodes[0].internal.type
+  if (!exampleValue) {
+    exampleValue = extractFieldExamples(nodes, nodeType)
+  }
 
   // Ensure nodes have internal key with object.
   nodes = nodes.map(n => (n.internal ? n : { ...n, internal: {} }))
@@ -328,7 +333,7 @@ export function inferObjectStructureFromNodes({
     // Several checks to see if a field is pointing to custom type
     // before we try automatic inference.
     const nextSelector = selector ? `${selector}.${key}` : key
-    const fieldSelector = `${nodes[0].internal.type}.${nextSelector}`
+    const fieldSelector = `${nodeType}.${nextSelector}`
 
     let fieldName = key
     let inferredField
