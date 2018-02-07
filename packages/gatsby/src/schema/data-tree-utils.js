@@ -4,6 +4,7 @@ const flatten = require(`flat`)
 const typeOf = require(`type-of`)
 
 const createKey = require(`./create-key`)
+const typeConflictReporter = require(`./type-conflict-reporter`)
 
 const INVALID_VALUE = Symbol(`INVALID_VALUE`)
 const isDefined = v => v != null
@@ -56,20 +57,26 @@ const extractFieldExamples = (nodes: any[], selector: ?string) =>
     _.isArray(nodes[0]) ? [] : {},
     ..._.clone(nodes),
     (obj, next, key, po, pn, stack) => {
-      if (obj === INVALID_VALUE) return obj
+      const nextSelector = selector && `${selector}.${key}`
+      if (obj === INVALID_VALUE) {
+        if (nextSelector && next) {
+          typeConflictReporter.addConflict(nextSelector, next)
+        }
+        return obj
+      }
 
       // TODO: if you want to support infering Union types this should be handled
       // differently. Maybe merge all like types into examples for each type?
       // e.g. union: [1, { foo: true }, ['brown']] -> Union Int|Object|List
       if (!isSameType(obj, next)) {
+        if (nextSelector) {
+          typeConflictReporter.addConflict(nextSelector, obj, next)
+        }
         return INVALID_VALUE
       }
 
       if (_.isPlainObject(obj || next)) {
-        return extractFieldExamples(
-          [obj, next],
-          selector && `${selector}.${key}`
-        )
+        return extractFieldExamples([obj, next], nextSelector)
       }
 
       if (!_.isArray(obj || next)) {
@@ -83,7 +90,12 @@ const extractFieldExamples = (nodes: any[], selector: ?string) =>
       let array = [].concat(obj, next).filter(isDefined)
 
       if (!array.length) return null
-      if (!areAllSameType(array)) return INVALID_VALUE
+      if (!areAllSameType(array)) {
+        if (nextSelector) {
+          typeConflictReporter.addConflict(nextSelector, obj, next)
+        }
+        return INVALID_VALUE
+      }
 
       // Linked node arrays don't get reduced further as we
       // want to preserve all the linked node types.
@@ -91,13 +103,13 @@ const extractFieldExamples = (nodes: any[], selector: ?string) =>
         return array
       }
 
-      // primitive values don't get merged further, just take the first item
+      // primitive values and dates don't get merged further, just take the first item
       if (!_.isObject(array[0]) || array[0] instanceof Date) {
         return array.slice(0, 1)
       }
       let merged = extractFieldExamples(
         array,
-        selector && `${selector}.${key}[]`
+        nextSelector && `${nextSelector}[]`
       )
       return isDefined(merged) ? [merged] : null
     }
