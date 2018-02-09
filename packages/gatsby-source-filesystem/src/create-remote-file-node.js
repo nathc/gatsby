@@ -102,6 +102,7 @@ module.exports = ({ url, store, cache, createNode, auth = {} }) => {
 
       // Create the file node and return.
       createFileNode(filename, {}).then(fileNode => {
+        filename.internal.origin = `File "${url}"`
         // Override the default plugin as gatsby-source-filesystem needs to
         // be the owner of File nodes or there'll be conflicts if any other
         // File nodes are created through normal usages of
