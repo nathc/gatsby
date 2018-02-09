@@ -3,6 +3,7 @@
 const _ = require(`lodash`)
 const report = require(`gatsby-cli/lib/reporter`)
 const typeOf = require(`type-of`)
+const util = require(`util`)
 
 const getMeaningfulTypeName = value => {
   if (_.isArray(value)) {
@@ -38,7 +39,12 @@ class TypeConflictEntry {
     report.log(
       `${this.selector}:${sortedByTypeName
         .map(
-          ([typeName, value]) => `\n  ${typeName} (${JSON.stringify(value)})`
+          ([typeName, value]) =>
+            `\n  ${typeName} (${util.inspect(value, {
+              colors: true,
+              depth: 0,
+              breakLength: Infinity,
+            })})`
         )
         .join(``)}`
     )
