@@ -119,7 +119,7 @@ exports.getNodeAndSavePathDependency = (id, path) => {
   return node
 }
 
-exports.getRootNodeId = node => rootNodeMap.get(node)
+const getRootNodeId = node => rootNodeMap.get(node)
 
 const addParentToSubObjects = (data, nodeId) => {
   if (_.isPlainObject(data) || _.isArray(data)) {
@@ -138,6 +138,34 @@ const trackSubObjectsToRootNodeId = node => {
   })
 }
 exports.trackSubObjectsToRootNodeId = trackSubObjectsToRootNodeId
+
+const findRootNode = node => {
+  // Find the root node.
+  let rootNode = node
+  let whileCount = 0
+  let rootNodeId
+  while (
+    (rootNodeId = getRootNodeId(rootNode) || rootNode.parent) &&
+    (getNode(rootNode.parent) !== undefined || getNode(rootNodeId)) &&
+    whileCount < 101
+  ) {
+    if (rootNodeId) {
+      rootNode = getNode(rootNodeId)
+    } else {
+      rootNode = getNode(rootNode.parent)
+    }
+    whileCount += 1
+    if (whileCount > 100) {
+      console.log(
+        `It looks like you have a node that's set its parent as itself`,
+        rootNode
+      )
+    }
+  }
+
+  return rootNode
+}
+exports.findRootNode = findRootNode
 
 // Start plugin runner which listens to the store
 // and invokes Gatsby API based on actions.
