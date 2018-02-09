@@ -15,21 +15,33 @@ const getMeaningfulTypeName = value => {
   }
 }
 
+const squeezeValue = value =>
+  _.isArray(value) ? _.uniqBy(value, typeOf) : value
+
 class TypeConflictEntry {
   constructor(selector) {
     this.selector = selector
-    this.types = []
+    this.types = {}
   }
 
   addValue(value) {
     const typeName = getMeaningfulTypeName(value)
-    if (!_.includes(this.types, typeName)) {
-      this.types.push(typeName)
-    }
+    this.types[typeName] = squeezeValue(value)
   }
 
   printEntry() {
-    report.log(`${this.selector}: ${this.types.sort().join(`, `)}`)
+    const sortedByTypeName = _.sortBy(
+      _.entries(this.types),
+      ([typeName, value]) => typeName
+    )
+
+    report.log(
+      `${this.selector}:${sortedByTypeName
+        .map(
+          ([typeName, value]) => `\n  ${typeName} (${JSON.stringify(value)})`
+        )
+        .join(``)}`
+    )
   }
 }
 
