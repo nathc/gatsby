@@ -6,7 +6,7 @@ const isRelativeUrl = require(`is-relative-url`)
 const normalize = require(`normalize-path`)
 const systemPath = require(`path`)
 
-const { getNodes, findRootNode } = require(`../../redux`)
+const { getNodes, findRootNodeAncestor } = require(`../../redux`)
 const {
   createPageDependency,
 } = require(`../../redux/actions/add-page-dependency`)
@@ -98,7 +98,7 @@ function pointsToFile(nodes, key, value) {
     }
   }
 
-  const rootNode = findRootNode(node)
+  const rootNode = findRootNodeAncestor(node)
 
   // Only nodes transformed (ultimately) from a File
   // can link to another File.
@@ -163,7 +163,7 @@ function createType(fileNodeRootType, isArray) {
 
       // Find the File node for this node (we assume the node is something
       // like markdown which would be a child node of a File node).
-      const parentFileNode = findRootNode(node)
+      const parentFileNode = findRootNodeAncestor(node)
 
       // Find the linked File node(s)
       if (isArray) {

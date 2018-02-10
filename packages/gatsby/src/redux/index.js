@@ -138,13 +138,20 @@ const trackSubObjectsToRootNodeId = node => {
   })
 }
 exports.trackSubObjectsToRootNodeId = trackSubObjectsToRootNodeId
-
-const findRootNode = node => {
+/**
+ * Search node tree from node containing passed obj upward.
+ * @param {Array|Object} obj Array or Object that belong to node
+ * @param {*} [predicate] Optional callback to check if ancestor meets defined conditions
+ * @returns {Object} Top most ancestor if predicate is not specified
+ * or first node that meet predicate conditions if predicate is specified
+ */
+const findRootNodeAncestor = (obj, predicate = null) => {
   // Find the root node.
-  let rootNode = node
+  let rootNode = obj
   let whileCount = 0
   let rootNodeId
   while (
+    (!predicate || !predicate(rootNode)) &&
     (rootNodeId = getRootNodeId(rootNode) || rootNode.parent) &&
     (getNode(rootNode.parent) !== undefined || getNode(rootNodeId)) &&
     whileCount < 101
@@ -163,9 +170,10 @@ const findRootNode = node => {
     }
   }
 
-  return rootNode
+  //
+  return !predicate || predicate(rootNode) ? rootNode : null
 }
-exports.findRootNode = findRootNode
+exports.findRootNodeAncestor = findRootNodeAncestor
 
 // Start plugin runner which listens to the store
 // and invokes Gatsby API based on actions.
