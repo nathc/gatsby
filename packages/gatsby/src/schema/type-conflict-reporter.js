@@ -1,9 +1,21 @@
 // @flow
-
 const _ = require(`lodash`)
 const report = require(`gatsby-cli/lib/reporter`)
 const typeOf = require(`type-of`)
 const util = require(`util`)
+const { findRootNodeAncestor } = require(`../redux`)
+
+const isNodeWithOrigin = node => node.internal && node.internal.origin
+
+const findOrigin = obj => {
+  if (obj) {
+    const node = findRootNodeAncestor(obj, isNodeWithOrigin)
+    if (node && node.internal && node.internal.origin) {
+      return node.internal.origin
+    }
+  }
+  return ``
+}
 
 const getMeaningfulTypeName = value => {
   if (_.isArray(value)) {
@@ -25,9 +37,12 @@ class TypeConflictEntry {
     this.types = {}
   }
 
-  addValue(value) {
+  addExample({ value, parent }) {
     const typeName = getMeaningfulTypeName(value)
-    this.types[typeName] = squeezeValue(value)
+    this.types[typeName] = {
+      value: squeezeValue(value),
+      origin: findOrigin(parent),
+    }
   }
 
   printEntry() {
@@ -39,12 +54,12 @@ class TypeConflictEntry {
     report.log(
       `${this.selector}:${sortedByTypeName
         .map(
-          ([typeName, value]) =>
-            `\n  ${typeName} (${util.inspect(value, {
+          ([typeName, { value, origin }]) =>
+            `\n - ${typeName}: ${util.inspect(value, {
               colors: true,
               depth: 0,
               breakLength: Infinity,
-            })})`
+            })}${origin && ` (${origin})`}`
         )
         .join(``)}`
     )
@@ -66,11 +81,11 @@ class TypeConflictVault {
     return dataEntry
   }
 
-  addConflict(selector, ...values) {
+  addConflict(selector, ...examples) {
     const entry = this._getFromSelector(selector)
-    values
-      .filter(value => typeof value !== `undefined`)
-      .forEach(value => entry.addValue(value))
+    examples
+      .filter(example => example.value != null)
+      .forEach(example => entry.addExample(example))
   }
 
   printConflicts() {

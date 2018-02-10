@@ -51,69 +51,117 @@ const isEmptyObjectOrArray = (obj: any): boolean => {
  * @param {*Nodes} args
  * @param {string} selector path to field we extract example values from
  */
-const extractFieldExamples = (nodes: any[], selector: ?string) =>
-  // $FlowFixMe
-  _.assignWith(
+const extractFieldExamples = (nodes: any[], selector: ?string) => {
+  const valuesAndSources = _.assignWith(
     _.isArray(nodes[0]) ? [] : {},
     ..._.clone(nodes),
-    (obj, next, key, po, pn, stack) => {
-      const nextSelector = selector && `${selector}.${key}`
-      if (obj === INVALID_VALUE) {
-        if (nextSelector && next) {
-          typeConflictReporter.addConflict(nextSelector, next)
+    (current, nextValue, key, accumulator, nextParent) => {
+      // If this is first item in array value will be undefined.
+      // Init value with nulls
+      if (typeof current === `undefined`) {
+        current = {
+          value: null,
+          parent: null,
         }
-        return obj
+      }
+      // Track both value and its parent (object or array containing this value)
+      let { value, parent } = current
+
+      const nextSelector = selector && `${selector}.${key}`
+
+      // If we found conflict earlier - try to add next values
+      // to display all possible conflicts
+      if (value === INVALID_VALUE) {
+        if (nextSelector && nextValue) {
+          typeConflictReporter.addConflict(nextSelector, {
+            value: nextValue,
+            parent: nextParent,
+          })
+        }
+        // keep previously found INVALID_VALUE
+        return current
       }
 
       // TODO: if you want to support infering Union types this should be handled
       // differently. Maybe merge all like types into examples for each type?
       // e.g. union: [1, { foo: true }, ['brown']] -> Union Int|Object|List
-      if (!isSameType(obj, next)) {
+      if (!isSameType(value, nextValue)) {
         if (nextSelector) {
-          typeConflictReporter.addConflict(nextSelector, obj, next)
+          typeConflictReporter.addConflict(nextSelector, current, {
+            value: nextValue,
+            parent: nextParent,
+          })
         }
-        return INVALID_VALUE
+        return { value: INVALID_VALUE, parent }
       }
 
-      if (_.isPlainObject(obj || next)) {
-        return extractFieldExamples([obj, next], nextSelector)
+      if (_.isPlainObject(value || nextValue)) {
+        return {
+          value: extractFieldExamples([value, nextValue], nextSelector),
+          // This is tricky - we can't correctly define parent as extracted
+          // value will be merged from both objects so we will possibly
+          // report conflict with merged object (not actual value).
+          // We could store actual value in another field
+          parent: value ? parent : nextParent,
+        }
       }
 
-      if (!_.isArray(obj || next)) {
+      if (!_.isArray(value || nextValue)) {
         // Prefer floats over ints as they're more specific.
-        if (obj && _.isNumber(obj) && !_.isInteger(obj)) return obj
-        if (obj === null) return next
-        if (next === null) return obj
-        return undefined
+        if (value && _.isNumber(value) && !_.isInteger(value)) {
+          return { value, parent }
+        } else if (value === null) {
+          return { value: nextValue, parent: nextParent }
+        } else {
+          return { value, parent }
+        }
       }
 
-      let array = [].concat(obj, next).filter(isDefined)
+      // Filter before concatenating to know source of passed data
+      value = value ? value.filter(isDefined) : []
+      nextValue = nextValue ? nextValue.filter(isDefined) : []
 
-      if (!array.length) return null
+      let array = [].concat(value, nextValue)
+
+      if (!array.length) {
+        return { value: null, parent }
+      }
       if (!areAllSameType(array)) {
         if (nextSelector) {
-          typeConflictReporter.addConflict(nextSelector, obj, next)
+          typeConflictReporter.addConflict(nextSelector, current, {
+            value: nextValue,
+            parent: nextParent,
+          })
         }
-        return INVALID_VALUE
+        return { obj: INVALID_VALUE, parent: parent || nextParent }
       }
 
       // Linked node arrays don't get reduced further as we
       // want to preserve all the linked node types.
       if (_.includes(key, `___NODE`)) {
-        return array
+        return { value: array, parent }
       }
 
       // primitive values and dates don't get merged further, just take the first item
       if (!_.isObject(array[0]) || array[0] instanceof Date) {
-        return array.slice(0, 1)
+        return {
+          value: array.slice(0, 1),
+          parent: value.length ? parent : nextParent,
+        }
       }
       let merged = extractFieldExamples(
         array,
         nextSelector && `${nextSelector}[]`
       )
-      return isDefined(merged) ? [merged] : null
+      return {
+        value: isDefined(merged) ? [merged] : null,
+        parent: value.length ? parent : nextParent,
+      }
     }
   )
+  // Unpack values and discard source as it's not needed anymore
+  return _.mapValues(valuesAndSources, ({ value }) => value)
+}
 
 const buildFieldEnumValues = (nodes: any[]) => {
   const enumValues = {}
